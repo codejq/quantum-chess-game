@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quantum Chess Game</title>
+    <script type="module" crossorigin src="./assets/index-_7MK6J0X.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-BvjMQS1B.css">
+  </head>
+  <body>
+    <div id="app">
+      <main class="game-shell">
+        <section class="board-stage" aria-label="3D chess board">
+          <canvas id="game-canvas"></canvas>
+          <div class="turn-badge" id="turn-badge">White to move</div>
+        </section>
+        <aside class="side-panel" aria-label="Game controls">
+          <div>
+            <p class="eyebrow">Quantum Chess</p>
+            <h1>3D Chess</h1>
+            <a class="credit" id="credit" href="https://qb-solutions.us/" target="_blank" rel="noopener noreferrer">By Quantum Billing LLC</a>
+          </div>
+          <div class="status-panel">
+            <span>Status</span>
+            <strong id="game-status">White to move</strong>
+            <small id="engine-status">Computer plays black</small>
+          </div>
+          <div class="controls">
+            <button id="reset-btn" type="button">Reset</button>
+            <button id="undo-btn" type="button">Undo</button>
+            <button id="zoom-in-btn" type="button">Zoom In</button>
+            <button id="zoom-out-btn" type="button">Zoom Out</button>
+            <output id="zoom-level" for="zoom-in-btn zoom-out-btn">Zoom 100%</output>
+            <button id="camera-btn" type="button" aria-pressed="false">Flip View</button>
+            <button id="sound-btn" type="button" aria-pressed="true">Sound On</button>
+          </div>
+          <div class="move-log">
+            <h2>Moves</h2>
+            <ol id="move-list" aria-live="polite"></ol>
+          </div>
+        </aside>
+      </main>
+    </div>
+  </body>
+</html>
