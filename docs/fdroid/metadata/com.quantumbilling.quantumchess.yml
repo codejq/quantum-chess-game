@@ -1,0 +1,13 @@
+Categories:
+  - Board Game
+License: MIT
+WebSite: https://qb-solutions.us/
+SourceCode: https://github.com/codejq/quantum-chess-game
+IssueTracker: https://github.com/codejq/quantum-chess-game/issues
+Name: Quantum Chess
+Summary: Offline 3D chess game
+Description: |-
+  Quantum Chess is an offline 3D chess game
+  by Quantum Billing LLC. It supports single-player and simultaneous
+  two-player play, touch, mouse, keyboard, localized UI, score memory,
+  avatar customization, and replay-friendly seeded levels.
