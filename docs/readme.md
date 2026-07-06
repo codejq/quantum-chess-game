@@ -6,6 +6,8 @@ The Android package id and iOS bundle id are `com.quantumbilling.quantumchess`.
 
 The game supports LLM-driven play through `window.quantumChessAgent`, which lets an LLM observe the board, inspect legal moves, and submit moves using coordinate or SAN notation.
 
+![Quantum Chess gameplay screenshot](screen.png)
+
 ## Goal
 
 Build a polished 3D chess experience that runs in the browser and feels like a complete playable game rather than a static scene.

@@ -6,6 +6,8 @@ The game is built with Three.js, `chess.js`, Stockfish, Vite, and Tauri v2. It s
 
 The Android package id and iOS bundle id are `com.quantumbilling.quantumchess`.
 
+![Quantum Chess gameplay screenshot](docs/screen.png)
+
 ## Development
 
 ```powershell
