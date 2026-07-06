@@ -26,7 +26,7 @@ const ENGINE_DEPTH = 10;
 const ENGINE_MOVE_TIME = 900;
 const ENGINE_START_DELAY = 160;
 const COMPUTER_ANIMATION_MS = 620;
-const STOCKFISH_WORKER_URL = '/stockfish/stockfish-18-lite-single.js';
+const STOCKFISH_WORKER_URL = './stockfish/stockfish-18-lite-single.js';
 const ZOOM_STORAGE_KEY = 'quantum-chess-zoom-distance';
 const PIECE_VALUES = {
   p: 100,
