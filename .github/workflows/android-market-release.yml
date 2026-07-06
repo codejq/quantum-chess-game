@@ -92,6 +92,12 @@ jobs:
             echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD"
           } >> "$GITHUB_ENV"
 
+      - name: Initialize Android project if needed
+        run: |
+          if [ ! -d src-tauri/gen/android ]; then
+            npm run tauri -- android init
+          fi
+
       - name: Build signed Android APK and AAB
         run: npm run tauri:android:build
 

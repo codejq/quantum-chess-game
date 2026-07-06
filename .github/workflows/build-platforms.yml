@@ -225,6 +225,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Initialize Android project if needed
+        run: |
+          if [ ! -d src-tauri/gen/android ]; then
+            npm run tauri -- android init
+          fi
+
       - name: Build Android app
         run: npm run tauri:android:build
 
