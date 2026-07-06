@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+web/dist/
+*.tsbuildinfo
+
+# Tauri / Rust (added in later phases)
+src-tauri/target/
+src-tauri/gen/
+
+# Local tooling / editor
+.opencode/
+.vscode/
+.idea/
+*.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+.opencode

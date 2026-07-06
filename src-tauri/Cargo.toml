@@ -1,0 +1,20 @@
+[package]
+name = "quantum-chess"
+version = "0.1.0"
+description = "Quantum Chess"
+authors = ["Quantum Billing LLC"]
+edition = "2021"
+
+[lib]
+name = "quantum_chess_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "quantum-chess"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }

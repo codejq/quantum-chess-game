@@ -1,0 +1,20 @@
+{
+  "name": "quantum-chess-game",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "author": "Quantum Billing LLC",
+  "homepage": "https://qb-solutions.us/",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "chess.js": "^1.4.0",
+    "stockfish": "^18.0.8",
+    "three": "^0.178.0",
+    "vite": "^7.0.2"
+  }
+}

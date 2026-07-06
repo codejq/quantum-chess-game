@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Quantum Chess",
+  "version": "0.1.0",
+  "identifier": "com.quantumbilling.quantumchess",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://127.0.0.1:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist/web"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Quantum Chess",
+        "width": 1280,
+        "height": 800,
+        "fullscreen": true,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/icon.png",
+      "icons/icon.ico"
+    ],
+    "category": "Game",
+    "shortDescription": "A 3D chess game with Stockfish",
+    "longDescription": "Quantum Chess is an offline 3D chess game with Stockfish computer play and an LLM agent interface."
+  }
+}
