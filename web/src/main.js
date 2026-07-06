@@ -417,7 +417,17 @@ function handleSquare(square) {
     return;
   }
 
-  const move = game.move({ from: selectedSquare, to: square, promotion: 'q' });
+  const legalMove = highlightedMoves.find((candidate) => candidate.to === square);
+  if (!legalMove) {
+    clearSelection();
+    return;
+  }
+
+  const move = safeMove(game, {
+    from: selectedSquare,
+    to: square,
+    promotion: legalMove.promotion || 'q',
+  });
   if (move) {
     clearSelection();
     syncPieces();
@@ -509,11 +519,13 @@ function queueEngineMove() {
   window.setTimeout(async () => {
     const move = await requestEngineMove();
     if (move) {
-      const played = game.move(move);
-      await animateComputerMove(played);
-      syncPieces();
-      markLastMove(played.from, played.to);
-      playMoveResultSound();
+      const played = safeMove(game, move);
+      if (played) {
+        await animateComputerMove(played);
+        syncPieces();
+        markLastMove(played.from, played.to);
+        playMoveResultSound();
+      }
     }
     engineThinking = false;
     clearSelection();
@@ -651,6 +663,14 @@ function uciToChessMove(uciMove) {
     to: uciMove.slice(2, 4),
     promotion: uciMove[4] || 'q',
   };
+}
+
+function safeMove(chess, move) {
+  try {
+    return chess.move(move);
+  } catch {
+    return null;
+  }
 }
 
 function findBestEngineMove(chess, depth) {
@@ -807,7 +827,7 @@ function zoomCamera(delta) {
 
 function loadZoomDistance() {
   const stored = Number(localStorage.getItem(ZOOM_STORAGE_KEY));
-  return Number.isFinite(stored) ? THREE.MathUtils.clamp(stored, 4.2, 22) : 11.1;
+  return Number.isFinite(stored) ? THREE.MathUtils.clamp(stored, 4.2, 22) : 15.57;
 }
 
 function saveZoomDistance() {
