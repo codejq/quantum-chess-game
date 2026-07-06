@@ -73,7 +73,7 @@ export class QuantumChessAgent {
       };
     }
 
-    const played = this.chess.move(move);
+    const played = this.safeMove(move);
     if (!played) {
       return {
         ...this.observe(),
@@ -122,5 +122,13 @@ export class QuantumChessAgent {
       to: action.to,
       promotion: action.promotion || 'q',
     };
+  }
+
+  safeMove(move) {
+    try {
+      return this.chess.move(move);
+    } catch {
+      return null;
+    }
   }
 }
