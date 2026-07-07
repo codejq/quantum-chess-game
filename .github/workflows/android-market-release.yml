@@ -104,11 +104,24 @@ jobs:
         run: |
           mkdir -p release/android
           APK_SOURCE="$(find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" ! -name "*unsigned*.apk" | head -n 1)"
+          UNSIGNED_APK_SOURCE="$(find src-tauri/gen/android/app/build/outputs/apk -name "*unsigned*.apk" | head -n 1)"
           AAB_SOURCE="$(find src-tauri/gen/android/app/build/outputs/bundle -name "*.aab" | head -n 1)"
-          test -n "$APK_SOURCE"
           test -n "$AAB_SOURCE"
-          apksigner verify --verbose "$APK_SOURCE"
-          cp "$APK_SOURCE" "release/android/Quantum-Chess-${{ github.ref_name }}.apk"
+          if [ -n "$APK_SOURCE" ]; then
+            cp "$APK_SOURCE" "release/android/Quantum-Chess-${{ github.ref_name }}.apk"
+          else
+            test -n "$UNSIGNED_APK_SOURCE"
+            zipalign -p -f 4 "$UNSIGNED_APK_SOURCE" "release/android/Quantum-Chess-${{ github.ref_name }}-aligned.apk"
+            apksigner sign \
+              --ks "$ANDROID_KEYSTORE_PATH" \
+              --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" \
+              --ks-key-alias "$ANDROID_KEY_ALIAS" \
+              --key-pass "pass:$ANDROID_KEY_PASSWORD" \
+              --out "release/android/Quantum-Chess-${{ github.ref_name }}.apk" \
+              "release/android/Quantum-Chess-${{ github.ref_name }}-aligned.apk"
+            rm "release/android/Quantum-Chess-${{ github.ref_name }}-aligned.apk"
+          fi
+          apksigner verify --verbose "release/android/Quantum-Chess-${{ github.ref_name }}.apk"
           cp "$AAB_SOURCE" "release/android/Quantum-Chess-${{ github.ref_name }}.aab"
           ls -la release/android
 

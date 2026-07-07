@@ -224,6 +224,49 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Prepare Android signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 || secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || secrets.KEY_PASSWORD }}
+        run: |
+          KS_PATH="$GITHUB_WORKSPACE/Quantum-Chess-release.jks"
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | tr -d ' \r\n' | base64 --decode > /tmp/Quantum-Chess-orig.keystore
+            keytool -importkeystore \
+              -srckeystore /tmp/Quantum-Chess-orig.keystore \
+              -srcstorepass "$KEYSTORE_PASSWORD" \
+              -destkeystore "$KS_PATH" \
+              -deststoretype JKS \
+              -deststorepass "$KEYSTORE_PASSWORD" \
+              -noprompt
+          elif [ -z "$KEYSTORE_BASE64" ] && [ -z "$KEYSTORE_PASSWORD" ] && [ -z "$KEY_ALIAS" ] && [ -z "$KEY_PASSWORD" ]; then
+            echo "Android signing secrets are missing. Generating a temporary CI release key for this release only."
+            KEYSTORE_PASSWORD="temporary-quantum-chess-release"
+            KEY_ALIAS="quantum-chess"
+            KEY_PASSWORD="$KEYSTORE_PASSWORD"
+            keytool -genkeypair \
+              -keystore "$KS_PATH" \
+              -storetype JKS \
+              -alias "$KEY_ALIAS" \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Quantum Chess Temporary Release" \
+              -storepass "$KEYSTORE_PASSWORD" \
+              -keypass "$KEY_PASSWORD"
+          else
+            echo "Android signing secrets are partially configured. Provide all four signing values or none to use the temporary fallback."
+            exit 1
+          fi
+          {
+            echo "ANDROID_KEYSTORE_PATH=$KS_PATH"
+            echo "ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "ANDROID_KEY_ALIAS=$KEY_ALIAS"
+            echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
       - name: Initialize Android project if needed
         run: |
           if [ ! -d src-tauri/gen/android ]; then
@@ -238,7 +281,19 @@ jobs:
           mkdir -p release/android
           find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" ! -name "*unsigned*.apk" -exec cp {} release/android/ \;
           find src-tauri/gen/android/app/build/outputs/bundle -name "*.aab" -exec cp {} release/android/ \;
-          test "$(find release/android -name "*.apk" | wc -l)" -gt 0
+          if [ "$(find release/android -name "*.apk" | wc -l)" -eq 0 ]; then
+            UNSIGNED_APK_SOURCE="$(find src-tauri/gen/android/app/build/outputs/apk -name "*unsigned*.apk" | head -n 1)"
+            test -n "$UNSIGNED_APK_SOURCE"
+            zipalign -p -f 4 "$UNSIGNED_APK_SOURCE" release/android/Quantum-Chess-android-aligned.apk
+            apksigner sign \
+              --ks "$ANDROID_KEYSTORE_PATH" \
+              --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" \
+              --ks-key-alias "$ANDROID_KEY_ALIAS" \
+              --key-pass "pass:$ANDROID_KEY_PASSWORD" \
+              --out release/android/Quantum-Chess-android.apk \
+              release/android/Quantum-Chess-android-aligned.apk
+            rm release/android/Quantum-Chess-android-aligned.apk
+          fi
           apksigner verify --verbose "$(find release/android -name "*.apk" | head -n 1)"
 
       - name: Upload Android artifacts
@@ -246,3 +301,7 @@ jobs:
         with:
           name: Quantum-Chess-android
           path: release/android/*
+
+      - name: Remove Android signing key
+        if: always()
+        run: rm -f "$GITHUB_WORKSPACE/Quantum-Chess-release.jks" /tmp/Quantum-Chess-orig.keystore
