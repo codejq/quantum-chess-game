@@ -106,7 +106,8 @@ jobs:
             echo "storeFile=$ANDROID_KEYSTORE_PATH"
           } > keystore.properties
           APP_GRADLE="app/build.gradle.kts"
-          grep -q "import java.io.FileInputStream" "$APP_GRADLE" || sed -i '1i import java.io.FileInputStream\nimport java.util.Properties\n' "$APP_GRADLE"
+          grep -q "import java.io.FileInputStream" "$APP_GRADLE" || sed -i '1i import java.io.FileInputStream' "$APP_GRADLE"
+          grep -q "import java.util.Properties" "$APP_GRADLE" || sed -i '1i import java.util.Properties' "$APP_GRADLE"
           if ! grep -q "quantumChessReleaseSigning" "$APP_GRADLE"; then
             cat >> "$APP_GRADLE" <<'EOF'
 
