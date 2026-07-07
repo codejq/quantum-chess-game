@@ -233,10 +233,16 @@ jobs:
       - name: Build Android app
         run: npm run tauri:android:build
 
+      - name: Collect signed Android artifacts
+        run: |
+          mkdir -p release/android
+          find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" ! -name "*unsigned*.apk" -exec cp {} release/android/ \;
+          find src-tauri/gen/android/app/build/outputs/bundle -name "*.aab" -exec cp {} release/android/ \;
+          test "$(find release/android -name "*.apk" | wc -l)" -gt 0
+          apksigner verify --verbose "$(find release/android -name "*.apk" | head -n 1)"
+
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Quantum-Chess-android
-          path: |
-            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
-            src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
+          path: release/android/*
