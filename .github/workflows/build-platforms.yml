@@ -322,8 +322,8 @@ jobs:
           if [ "$(find release/android -name "*.apk" | wc -l)" -eq 0 ]; then
             UNSIGNED_APK_SOURCE="$(find src-tauri/gen/android/app/build/outputs/apk -name "*unsigned*.apk" | head -n 1)"
             test -n "$UNSIGNED_APK_SOURCE"
-            zipalign -p -f 4 "$UNSIGNED_APK_SOURCE" release/android/Quantum-Chess-android-aligned.apk
-            apksigner sign \
+            "$ANDROID_HOME/build-tools/36.0.0/zipalign" -p -f 4 "$UNSIGNED_APK_SOURCE" release/android/Quantum-Chess-android-aligned.apk
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign \
               --ks "$ANDROID_KEYSTORE_PATH" \
               --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" \
               --ks-key-alias "$ANDROID_KEY_ALIAS" \
@@ -332,7 +332,7 @@ jobs:
               release/android/Quantum-Chess-android-aligned.apk
             rm release/android/Quantum-Chess-android-aligned.apk
           fi
-          apksigner verify --verbose "$(find release/android -name "*.apk" | head -n 1)"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$(find release/android -name "*.apk" | head -n 1)"
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4

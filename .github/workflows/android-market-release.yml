@@ -149,8 +149,8 @@ jobs:
             cp "$APK_SOURCE" "release/android/Quantum-Chess-${{ github.ref_name }}.apk"
           else
             test -n "$UNSIGNED_APK_SOURCE"
-            zipalign -p -f 4 "$UNSIGNED_APK_SOURCE" "release/android/Quantum-Chess-${{ github.ref_name }}-aligned.apk"
-            apksigner sign \
+            "$ANDROID_HOME/build-tools/36.0.0/zipalign" -p -f 4 "$UNSIGNED_APK_SOURCE" "release/android/Quantum-Chess-${{ github.ref_name }}-aligned.apk"
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign \
               --ks "$ANDROID_KEYSTORE_PATH" \
               --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" \
               --ks-key-alias "$ANDROID_KEY_ALIAS" \
@@ -159,7 +159,7 @@ jobs:
               "release/android/Quantum-Chess-${{ github.ref_name }}-aligned.apk"
             rm "release/android/Quantum-Chess-${{ github.ref_name }}-aligned.apk"
           fi
-          apksigner verify --verbose "release/android/Quantum-Chess-${{ github.ref_name }}.apk"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "release/android/Quantum-Chess-${{ github.ref_name }}.apk"
           cp "$AAB_SOURCE" "release/android/Quantum-Chess-${{ github.ref_name }}.aab"
           ls -la release/android
 
