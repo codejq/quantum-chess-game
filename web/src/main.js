@@ -13,6 +13,7 @@ const resetBtn = document.querySelector('#reset-btn');
 const undoBtn = document.querySelector('#undo-btn');
 const cameraBtn = document.querySelector('#camera-btn');
 const soundBtn = document.querySelector('#sound-btn');
+const modeBtn = document.querySelector('#mode-btn');
 const zoomInBtn = document.querySelector('#zoom-in-btn');
 const zoomOutBtn = document.querySelector('#zoom-out-btn');
 const zoomLevelEl = document.querySelector('#zoom-level');
@@ -58,6 +59,7 @@ let soundEnabled = true;
 let audioContext = null;
 let audioUnlocked = false;
 let llmAgent = null;
+let playMode = 'computer';
 
 const game = new Chess();
 const scene = new THREE.Scene();
@@ -155,7 +157,7 @@ resetBtn.addEventListener('click', () => {
 
 undoBtn.addEventListener('click', () => {
   game.undo();
-  if (game.turn() === ENGINE_COLOR) game.undo();
+  if (playMode === 'computer' && game.turn() === ENGINE_COLOR) game.undo();
   engineThinking = false;
   lastMoveSquares = [];
   clearSelection();
@@ -178,6 +180,14 @@ zoomInBtn.addEventListener('click', () => {
 
 zoomOutBtn.addEventListener('click', () => {
   zoomCamera(1.25);
+});
+
+modeBtn.addEventListener('click', () => {
+  playMode = playMode === 'computer' ? 'local' : 'computer';
+  engineThinking = false;
+  clearSelection();
+  updateHud();
+  if (playMode === 'computer' && game.turn() === ENGINE_COLOR) queueEngineMove();
 });
 
 soundBtn.addEventListener('click', () => {
@@ -400,10 +410,11 @@ function findHitSquare(hits) {
 }
 
 function handleSquare(square) {
-  if (engineThinking || game.turn() !== HUMAN_COLOR || game.isGameOver()) return;
+  if (engineThinking || !canHumanMoveCurrentTurn() || game.isGameOver()) return;
   const piece = game.get(square);
+  const playableColor = game.turn();
   if (!selectedSquare) {
-    if (piece?.color === HUMAN_COLOR) selectSquare(square);
+    if (piece?.color === playableColor) selectSquare(square);
     return;
   }
 
@@ -412,7 +423,7 @@ function handleSquare(square) {
     return;
   }
 
-  if (piece?.color === HUMAN_COLOR) {
+  if (piece?.color === playableColor) {
     selectSquare(square);
     return;
   }
@@ -434,8 +445,12 @@ function handleSquare(square) {
     markLastMove(move.from, move.to);
     playMoveResultSound();
     updateHud();
-    queueEngineMove();
+    if (playMode === 'computer') queueEngineMove();
   }
+}
+
+function canHumanMoveCurrentTurn() {
+  return playMode === 'local' || game.turn() === HUMAN_COLOR;
 }
 
 function selectSquare(square) {
@@ -495,11 +510,9 @@ function updateHud() {
 
   statusEl.textContent = status;
   turnBadge.textContent = status;
-  engineStatusEl.textContent = engineThinking
-    ? 'Stockfish is thinking'
-    : stockfishReady
-      ? 'You play white. Stockfish 18 plays black'
-      : 'You play white. Loading Stockfish';
+  engineStatusEl.textContent = getModeStatus();
+  modeBtn.textContent = playMode === 'computer' ? 'Play Two Players' : 'Play Computer';
+  modeBtn.setAttribute('aria-pressed', String(playMode === 'local'));
   undoBtn.disabled = engineThinking;
   resetBtn.disabled = engineThinking;
   moveList.replaceChildren(
@@ -513,7 +526,7 @@ function updateHud() {
 }
 
 function queueEngineMove() {
-  if (game.isGameOver()) return;
+  if (playMode !== 'computer' || game.turn() !== ENGINE_COLOR || game.isGameOver()) return;
   engineThinking = true;
   updateHud();
   window.setTimeout(async () => {
@@ -531,6 +544,14 @@ function queueEngineMove() {
     clearSelection();
     updateHud();
   }, ENGINE_START_DELAY);
+}
+
+function getModeStatus() {
+  if (playMode === 'local') return 'Two players can move white and black';
+  if (engineThinking) return 'Stockfish is thinking';
+  return stockfishReady
+    ? 'You play white. Stockfish 18 plays black'
+    : 'You play white. Loading Stockfish';
 }
 
 function initLlmAgent() {
