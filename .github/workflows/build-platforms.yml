@@ -273,6 +273,43 @@ jobs:
             npm run tauri -- android init
           fi
 
+      - name: Configure Android release signing
+        run: |
+          cd src-tauri/gen/android
+          {
+            echo "keyAlias=$ANDROID_KEY_ALIAS"
+            echo "password=$ANDROID_KEY_PASSWORD"
+            echo "storeFile=$ANDROID_KEYSTORE_PATH"
+          } > keystore.properties
+          APP_GRADLE="app/build.gradle.kts"
+          grep -q "import java.io.FileInputStream" "$APP_GRADLE" || sed -i '1i import java.io.FileInputStream\nimport java.util.Properties\n' "$APP_GRADLE"
+          if ! grep -q "quantumChessReleaseSigning" "$APP_GRADLE"; then
+            cat >> "$APP_GRADLE" <<'EOF'
+
+          // quantumChessReleaseSigning
+          android {
+              signingConfigs {
+                  create("release") {
+                      val keystorePropertiesFile = rootProject.file("keystore.properties")
+                      val keystoreProperties = Properties()
+                      if (keystorePropertiesFile.exists()) {
+                          keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+                      }
+                      keyAlias = keystoreProperties["keyAlias"] as String
+                      keyPassword = keystoreProperties["password"] as String
+                      storeFile = file(keystoreProperties["storeFile"] as String)
+                      storePassword = keystoreProperties["password"] as String
+                  }
+              }
+              buildTypes {
+                  getByName("release") {
+                      signingConfig = signingConfigs.getByName("release")
+                  }
+              }
+          }
+          EOF
+          fi
+
       - name: Build Android app
         run: npm run tauri:android:build
 
