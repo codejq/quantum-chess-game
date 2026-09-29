@@ -12,16 +12,18 @@ The Android package id and iOS bundle id are `com.quantumbilling.quantumchess`.
 
 The project website is at [codejq.github.io/quantum-chess-game](https://codejq.github.io/quantum-chess-game/), with downloads for desktop and Android.
 
+On a phone or tablet, the game offers to install itself a few seconds after it opens. The pop-up has **Install**, **Later** (asks again after 3 days) and **No thanks** (never asks again). On Android, Install opens the browser's install dialog; on iPhone and iPad it shows the "Share → Add to Home Screen" steps. The installed game runs full screen and keeps working offline. The pop-up never appears on desktop, inside the installed game, or in the native Android and desktop apps.
+
 [![Quantum Chess gameplay screenshot](docs/screen.png)](https://codejq.github.io/quantum-chess-game/game/)
 
 ## Chess Pieces
 
 The board uses a professionally sculpted Staunton set: a carved horse-head knight with mane and eyes, a slit bishop mitre, a crenellated rook, a pearl-crowned queen, and a cross-topped king. Knights face the opponent, turned slightly so their profile shows from the table view.
 
-The **Pieces** button in the controls panel switches between four finishes, and the game remembers your choice:
+The **Pieces** button in the controls panel switches between four finishes, and the game remembers your choice. The wood grain in Ebony and Wood is drawn by a shader, so it adds no download.
 
-- **Wood** (default): polished boxwood for White and ebony for Black. The grain is drawn by a shader, so it adds no download.
-- **Ebony**: a tournament set of glossy ebony and pale boxwood, played on a maple and mahogany wooden board. This is the only look that also changes the board.
+- **Ebony** (default): a tournament set of glossy ebony and polished golden boxwood, played on a maple and mahogany wooden board. This is the only look that also changes the board.
+- **Wood**: satin boxwood for White and dark ebony for Black on the green board.
 - **Marble**: the 3D model's own textures, a veined white and dark stone finish. These textures (about 3 MB) load only when you pick this look.
 - **Classic**: plain white and black.
 
