@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { QuantumChessAgent } from './input/llm-agent.js';
+import { initInstallPrompt } from './install-prompt.js';
 import './styles/main.css';
 
 const canvas = document.querySelector('#game-canvas');
@@ -37,7 +38,7 @@ const PIECE_STYLE_STORAGE_KEY = 'quantum-chess-piece-style';
 const PIECE_MODEL_URL = './models/staunton-pieces.glb';
 const PIECE_MODEL_SQUARE_SIZE = 0.0578881;
 const PIECE_TEXTURE_DIR = './models/marble/';
-const PIECE_STYLES = ['wood', 'ebony', 'marble', 'classic'];
+const PIECE_STYLES = ['ebony', 'wood', 'marble', 'classic'];
 const PIECE_STYLE_LABELS = { wood: 'Wood', ebony: 'Ebony', marble: 'Marble', classic: 'Classic' };
 const PIECE_VALUES = {
   p: 100,
@@ -129,10 +130,11 @@ const pieceMaterials = {
   // Tournament set: pale, fine-grained boxwood and glossy ebony, played on a maple and mahogany board.
   ebony: {
     w: createWoodMaterial({
-      light: 0xedd3a0,
-      dark: 0xd8b67e,
-      roughness: 0.42,
+      light: 0xf2cf86,
+      dark: 0xd9a95c,
+      roughness: 0.3,
       grain: { ring: 0.12, fibre: 0.22, tone: 0.3, ringScale: 40 },
+      clearcoat: true,
     }),
     b: createWoodMaterial({
       light: 0x13100e,
@@ -180,6 +182,7 @@ initLights();
 createBoard();
 initStockfish();
 initLlmAgent();
+initInstallPrompt();
 syncPieces();
 loadPieceModels();
 updateHud();
@@ -372,7 +375,7 @@ function loadPieceStyle() {
   } catch {
     // Fall back to the default style.
   }
-  return 'wood';
+  return 'ebony';
 }
 
 // Procedural wood: growth rings around a log axis set beside the surface. On pieces the
