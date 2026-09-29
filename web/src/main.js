@@ -1,6 +1,7 @@
 import { Chess } from 'chess.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { QuantumChessAgent } from './input/llm-agent.js';
 import './styles/main.css';
@@ -30,6 +31,9 @@ const ENGINE_START_DELAY = 160;
 const COMPUTER_ANIMATION_MS = 620;
 const STOCKFISH_WORKER_URL = './stockfish/stockfish-18-lite-single.js';
 const ZOOM_STORAGE_KEY = 'quantum-chess-zoom-distance';
+// Sculpted Staunton set: "Chess Set" by Riley Queen, Poly Haven (CC0).
+const PIECE_MODEL_URL = './models/staunton-pieces.glb';
+const PIECE_MODEL_SQUARE_SIZE = 0.0578881;
 const PIECE_VALUES = {
   p: 100,
   n: 320,
@@ -39,6 +43,7 @@ const PIECE_VALUES = {
   k: 20000,
 };
 const pieceTemplates = new Map();
+const pieceModels = new Map();
 const pieceMeshes = new Map();
 const markerMeshes = [];
 let selectedSquare = null;
@@ -136,6 +141,7 @@ createBoard();
 initStockfish();
 initLlmAgent();
 syncPieces();
+loadPieceModels();
 updateHud();
 resize();
 animate();
@@ -265,13 +271,57 @@ function syncPieces() {
   }
 }
 
+function loadPieceModels() {
+  new GLTFLoader()
+    .loadAsync(PIECE_MODEL_URL)
+    .then((gltf) => {
+      let detailMaterial = null;
+      for (const node of gltf.scene.children) {
+        if (!PIECE_VALUES[node.name]) continue;
+        node.traverse((child) => {
+          if (child.isMesh) detailMaterial ??= child.material;
+        });
+        pieceModels.set(node.name, node);
+      }
+      if (detailMaterial?.normalMap) {
+        for (const material of [whitePieceMaterial, blackPieceMaterial]) {
+          material.normalMap = detailMaterial.normalMap;
+          material.normalScale.copy(detailMaterial.normalScale);
+          material.needsUpdate = true;
+        }
+      }
+      pieceTemplates.clear();
+      syncPieces();
+    })
+    .catch((error) => {
+      // The simpler built-in pieces stay on the board if the model cannot load.
+      console.warn('Could not load the sculpted chess pieces.', error);
+    });
+}
+
 function createPiece(piece) {
   const key = `${piece.color}${piece.type}`;
   if (!pieceTemplates.has(key)) {
     const material = piece.color === 'w' ? whitePieceMaterial : blackPieceMaterial;
-    const template = buildPieceModel(piece.type, material);
-    // Knights look toward the opponent, turned slightly so the horse profile reads from the table view.
-    if (piece.type === 'n') template.rotation.y = piece.color === 'w' ? (-3 * Math.PI) / 4 : Math.PI / 4;
+    const model = pieceModels.get(piece.type);
+    let template;
+    if (model) {
+      template = new THREE.Group();
+      const shape = model.clone();
+      shape.position.set(0, 0, 0);
+      shape.scale.setScalar(TILE_SIZE / PIECE_MODEL_SQUARE_SIZE);
+      shape.traverse((child) => {
+        if (child.isMesh) child.material = material;
+      });
+      template.add(shape);
+      // The set is modelled with white facing black; turn black's pieces around to face white.
+      template.rotation.y = piece.color === 'w' ? 0 : Math.PI;
+      // Knights look toward the opponent, turned slightly so the horse profile reads from the table view.
+      if (piece.type === 'n') template.rotation.y -= Math.PI / 4;
+    } else {
+      template = buildPieceModel(piece.type, material);
+      if (piece.type === 'n') template.rotation.y = piece.color === 'w' ? (-3 * Math.PI) / 4 : Math.PI / 4;
+    }
     template.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = true;

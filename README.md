@@ -28,6 +28,8 @@ npm run tauri:build
 
 Quantum Chess Game is credited to [Quantum Billing LLC](https://qb-solutions.us/).
 
+The 3D chess pieces are from [Chess Set](https://polyhaven.com/a/chess_set) by Riley Queen on Poly Haven, released under CC0. `web/public/models/staunton-pieces.glb` keeps only one mesh per piece type and the normal map.
+
 ## LLM Play
 
 The browser game exposes `window.quantumChessAgent` so an LLM or automation tool can observe the board, inspect legal moves, and play chess moves.
