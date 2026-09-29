@@ -1,6 +1,7 @@
 import { Chess } from 'chess.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { QuantumChessAgent } from './input/llm-agent.js';
 import './styles/main.css';
 
@@ -37,14 +38,7 @@ const PIECE_VALUES = {
   q: 900,
   k: 20000,
 };
-const PIECE_SPECS = {
-  p: { baseTop: 0.3, baseBottom: 0.38, baseHeight: 0.14, stemTop: 0.14, stemBottom: 0.22, stemHeight: 0.36, topY: 0.59 },
-  n: { baseTop: 0.36, baseBottom: 0.45, baseHeight: 0.18, stemTop: 0.2, stemBottom: 0.29, stemHeight: 0.55, topY: 0.87 },
-  b: { baseTop: 0.36, baseBottom: 0.45, baseHeight: 0.18, stemTop: 0.19, stemBottom: 0.29, stemHeight: 0.62, topY: 0.93 },
-  r: { baseTop: 0.38, baseBottom: 0.48, baseHeight: 0.2, stemTop: 0.22, stemBottom: 0.32, stemHeight: 0.62, topY: 0.94 },
-  q: { baseTop: 0.42, baseBottom: 0.52, baseHeight: 0.22, stemTop: 0.24, stemBottom: 0.36, stemHeight: 0.72, topY: 1.08 },
-  k: { baseTop: 0.43, baseBottom: 0.54, baseHeight: 0.22, stemTop: 0.25, stemBottom: 0.37, stemHeight: 0.76, topY: 1.12 },
-};
+const pieceTemplates = new Map();
 const pieceMeshes = new Map();
 const markerMeshes = [];
 let selectedSquare = null;
@@ -120,11 +114,13 @@ const whitePieceMaterial = new THREE.MeshStandardMaterial({
   color: 0xf6eee0,
   metalness: 0.08,
   roughness: 0.42,
+  side: THREE.DoubleSide,
 });
 const blackPieceMaterial = new THREE.MeshStandardMaterial({
   color: 0x202321,
   metalness: 0.16,
   roughness: 0.35,
+  side: THREE.DoubleSide,
 });
 const markerMaterial = new THREE.MeshBasicMaterial({
   color: 0xe8bf67,
@@ -211,6 +207,8 @@ function initLights() {
   const key = new THREE.DirectionalLight(0xffffff, 2.8);
   key.position.set(4.5, 8, 5);
   key.castShadow = true;
+  key.shadow.bias = -0.0004;
+  key.shadow.normalBias = 0.02;
   key.shadow.mapSize.set(2048, 2048);
   key.shadow.camera.left = -7;
   key.shadow.camera.right = 7;
@@ -268,121 +266,298 @@ function syncPieces() {
 }
 
 function createPiece(piece) {
-  const material = piece.color === 'w' ? whitePieceMaterial : blackPieceMaterial;
-  const spec = PIECE_SPECS[piece.type];
-  const group = new THREE.Group();
-  const base = new THREE.Mesh(
-    new THREE.CylinderGeometry(spec.baseTop, spec.baseBottom, spec.baseHeight, 36),
-    material,
-  );
-  const collar = new THREE.Mesh(
-    new THREE.CylinderGeometry(spec.baseTop * 0.82, spec.baseTop, 0.08, 36),
-    material,
-  );
-  const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(spec.stemTop, spec.stemBottom, spec.stemHeight, 32),
-    material,
-  );
-  base.position.y = spec.baseHeight / 2;
-  collar.position.y = spec.baseHeight + 0.04;
-  stem.position.y = spec.baseHeight + 0.08 + spec.stemHeight / 2;
-  group.add(base, collar, stem);
-
-  const top = createPieceTop(piece.type, material);
-  top.position.y = spec.topY;
-  group.add(top);
-
-  group.traverse((child) => {
-    if (child.isMesh) {
-      child.castShadow = true;
-      child.receiveShadow = true;
-      child.userData.square = group.userData.square;
-    }
-  });
-  return group;
+  const key = `${piece.color}${piece.type}`;
+  if (!pieceTemplates.has(key)) {
+    const material = piece.color === 'w' ? whitePieceMaterial : blackPieceMaterial;
+    const template = buildPieceModel(piece.type, material);
+    // Knights look toward the opponent, turned slightly so the horse profile reads from the table view.
+    if (piece.type === 'n') template.rotation.y = piece.color === 'w' ? (-3 * Math.PI) / 4 : Math.PI / 4;
+    template.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+    pieceTemplates.set(key, template);
+  }
+  return pieceTemplates.get(key).clone();
 }
 
-function createPieceTop(type, material) {
-  if (type === 'p') return new THREE.Mesh(new THREE.SphereGeometry(0.21, 32, 20), material);
+function buildPieceModel(type, material) {
+  const group = new THREE.Group();
+  if (type === 'p') {
+    const profile = stauntonBase(0.34, 0.2);
+    profile.quadraticCurveTo(0.12, 0.3, 0.105, 0.5);
+    profile.lineTo(0.18, 0.52);
+    profile.lineTo(0.185, 0.55);
+    profile.lineTo(0.1, 0.58);
+    const start = Math.atan2(0.58 - 0.72, 0.1);
+    profile.absarc(0, 0.72, Math.hypot(0.1, 0.14), start, Math.PI / 2, false);
+    group.add(latheMesh(profile, material));
+    return group;
+  }
   if (type === 'r') {
-    const rook = new THREE.Group();
-    const tower = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.34, 0.52), material);
-    const cap = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.12, 0.62), material);
-    cap.position.y = 0.23;
-    rook.add(tower, cap);
-    return rook;
+    const profile = stauntonBase(0.4, 0.26);
+    profile.quadraticCurveTo(0.2, 0.52, 0.215, 0.76);
+    profile.quadraticCurveTo(0.225, 0.82, 0.29, 0.845);
+    profile.lineTo(0.295, 0.87);
+    profile.lineTo(0.27, 0.885);
+    profile.lineTo(0.285, 0.9);
+    profile.lineTo(0.285, 0.97);
+    profile.lineTo(0.19, 0.97);
+    profile.lineTo(0.19, 0.95);
+    profile.lineTo(0, 0.95);
+    group.add(latheMesh(profile, material));
+    const merlons = 6;
+    for (let i = 0; i < merlons; i += 1) {
+      const span = (Math.PI * 2) / merlons;
+      const a0 = i * span + span * 0.2;
+      const a1 = (i + 1) * span - span * 0.2;
+      const shape = new THREE.Shape();
+      shape.absarc(0, 0, 0.285, a0, a1, false);
+      shape.absarc(0, 0, 0.19, a1, a0, true);
+      shape.closePath();
+      const geometry = new THREE.ExtrudeGeometry(shape, {
+        depth: 0.11,
+        bevelEnabled: true,
+        bevelThickness: 0.012,
+        bevelSize: 0.01,
+        bevelSegments: 2,
+        curveSegments: 8,
+      });
+      geometry.rotateX(-Math.PI / 2);
+      const merlon = new THREE.Mesh(geometry, material);
+      merlon.position.y = 0.97;
+      group.add(merlon);
+    }
+    return group;
   }
   if (type === 'n') {
-    const group = new THREE.Group();
-    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.26, 0.58, 24), material);
-    neck.scale.x = 0.78;
-    neck.rotation.z = -0.42;
-    neck.position.set(-0.06, -0.02, 0);
-
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 28, 18), material);
-    head.scale.set(1.06, 1.32, 0.72);
-    head.position.set(0.18, 0.28, 0);
-    head.rotation.z = -0.34;
-
-    const muzzle = new THREE.Mesh(new THREE.CapsuleGeometry(0.105, 0.2, 8, 18), material);
-    muzzle.rotation.z = Math.PI / 2;
-    muzzle.position.set(0.36, 0.2, 0);
-
-    const earA = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.2, 14), material);
-    const earB = earA.clone();
-    earA.position.set(0.11, 0.52, -0.08);
-    earB.position.set(0.11, 0.52, 0.08);
-
-    const mane = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.42, 0.08), material);
-    mane.position.set(-0.03, 0.2, 0);
-    mane.rotation.z = -0.36;
-
-    group.add(neck, head, muzzle, earA, earB, mane);
+    const profile = stauntonBase(0.4, 0.26);
+    profile.lineTo(0.25, 0.28);
+    profile.lineTo(0.25, 0.3);
+    profile.lineTo(0, 0.31);
+    group.add(latheMesh(profile, material));
+    const head = createKnightHead(material);
+    head.position.y = 0.3;
+    group.add(head);
     return group;
   }
   if (type === 'b') {
-    const bishop = new THREE.Group();
-    const mitre = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.62, 36), material);
-    const bead = new THREE.Mesh(new THREE.SphereGeometry(0.11, 24, 16), material);
-    bead.position.y = 0.37;
-    bishop.add(mitre, bead);
-    return bishop;
+    const profile = stauntonBase(0.38, 0.25);
+    profile.quadraticCurveTo(0.12, 0.52, 0.125, 0.84);
+    addCollar(profile, 0.84, 0.125, 0.22, 0.12);
+    group.add(latheMesh(profile, material));
+    group.add(...createMitre(material, 0.93, 0.47));
+    const bead = new THREE.Mesh(new THREE.SphereGeometry(0.05, 20, 14), material);
+    bead.position.y = 1.42;
+    group.add(bead);
+    return group;
   }
   if (type === 'q') {
-    const queen = new THREE.Group();
-    const bowl = new THREE.Mesh(new THREE.SphereGeometry(0.31, 32, 18), material);
-    bowl.scale.y = 0.68;
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.29, 0.035, 10, 40), material);
-    rim.rotation.x = Math.PI / 2;
-    rim.position.y = 0.14;
-    queen.add(bowl, rim);
-    for (let i = 0; i < 8; i += 1) {
-      const point = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.22, 18), material);
-      const jewel = new THREE.Mesh(new THREE.SphereGeometry(0.045, 14, 10), material);
-      const angle = (i / 8) * Math.PI * 2;
-      const x = Math.cos(angle) * 0.27;
-      const z = Math.sin(angle) * 0.27;
-      point.position.set(x, 0.3, z);
-      jewel.position.set(x, 0.43, z);
-      queen.add(point);
-      queen.add(jewel);
+    const profile = stauntonBase(0.43, 0.28);
+    profile.quadraticCurveTo(0.13, 0.66, 0.14, 1.06);
+    addCollar(profile, 1.06, 0.14, 0.25, 0.14);
+    profile.quadraticCurveTo(0.16, 1.32, 0.265, 1.43);
+    profile.lineTo(0.255, 1.46);
+    profile.lineTo(0.2, 1.45);
+    profile.quadraticCurveTo(0.19, 1.54, 0.06, 1.575);
+    profile.lineTo(0.035, 1.6);
+    profile.lineTo(0, 1.6);
+    group.add(latheMesh(profile, material));
+    const pearls = 9;
+    for (let i = 0; i < pearls; i += 1) {
+      const angle = (i / pearls) * Math.PI * 2;
+      const pearl = new THREE.Mesh(new THREE.SphereGeometry(0.042, 14, 10), material);
+      pearl.position.set(Math.cos(angle) * 0.245, 1.48, Math.sin(angle) * 0.245);
+      group.add(pearl);
     }
-    return queen;
+    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.065, 20, 14), material);
+    orb.position.y = 1.655;
+    group.add(orb);
+    return group;
   }
-  const crown = new THREE.Group();
-  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.2, 8), material);
-  const highDome = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 0.32, 32), material);
-  const topOrb = new THREE.Mesh(new THREE.SphereGeometry(0.12, 20, 14), material);
-  highDome.position.y = 0.25;
-  topOrb.position.y = 0.5;
-  crown.add(band, highDome, topOrb);
-  for (let i = 0; i < 4; i += 1) {
-    const point = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.28, 18), material);
-    const angle = (i / 4) * Math.PI * 2 + Math.PI / 4;
-    point.position.set(Math.cos(angle) * 0.26, 0.36, Math.sin(angle) * 0.26);
-    crown.add(point);
+  const profile = stauntonBase(0.44, 0.29);
+  profile.quadraticCurveTo(0.14, 0.7, 0.15, 1.12);
+  addCollar(profile, 1.12, 0.15, 0.265, 0.15);
+  profile.quadraticCurveTo(0.17, 1.38, 0.255, 1.48);
+  profile.lineTo(0.255, 1.51);
+  profile.lineTo(0.235, 1.52);
+  profile.quadraticCurveTo(0.2, 1.62, 0.07, 1.645);
+  profile.lineTo(0.06, 1.66);
+  profile.lineTo(0.075, 1.675);
+  profile.lineTo(0.07, 1.69);
+  profile.lineTo(0, 1.69);
+  group.add(latheMesh(profile, material));
+  const cross = new THREE.Shape();
+  const arm = 0.036;
+  const reach = 0.1;
+  cross.moveTo(-arm, 0);
+  cross.lineTo(arm, 0);
+  cross.lineTo(arm, 0.13);
+  cross.lineTo(reach, 0.13);
+  cross.lineTo(reach, 0.2);
+  cross.lineTo(arm, 0.2);
+  cross.lineTo(arm, 0.26);
+  cross.lineTo(-arm, 0.26);
+  cross.lineTo(-arm, 0.2);
+  cross.lineTo(-reach, 0.2);
+  cross.lineTo(-reach, 0.13);
+  cross.lineTo(-arm, 0.13);
+  cross.closePath();
+  const crossGeometry = new THREE.ExtrudeGeometry(cross, {
+    depth: 0.05,
+    bevelEnabled: true,
+    bevelThickness: 0.012,
+    bevelSize: 0.012,
+    bevelSegments: 2,
+  });
+  crossGeometry.translate(0, 0, -0.025);
+  const crossMesh = new THREE.Mesh(crossGeometry, material);
+  crossMesh.position.y = 1.68;
+  group.add(crossMesh);
+  return group;
+}
+
+// Classic Staunton foot: flat pad, rounded torus, cove and a fine ring before the stem.
+function stauntonBase(radius, stemRadius) {
+  const path = new THREE.Path();
+  path.moveTo(0, 0);
+  path.lineTo(radius - 0.01, 0);
+  path.lineTo(radius, 0.012);
+  path.lineTo(radius, 0.04);
+  path.quadraticCurveTo(radius * 1.02, 0.1, radius * 0.9, 0.14);
+  path.quadraticCurveTo(radius * 0.74, 0.16, radius * 0.78, 0.2);
+  path.lineTo(radius * 0.8, 0.215);
+  path.lineTo(radius * 0.78, 0.23);
+  path.quadraticCurveTo(radius * 0.7, 0.25, stemRadius, 0.26);
+  return path;
+}
+
+function addCollar(path, y, stemRadius, collarRadius, neckRadius) {
+  path.lineTo(collarRadius * 0.9, y + 0.02);
+  path.quadraticCurveTo(collarRadius * 1.02, y + 0.03, collarRadius, y + 0.05);
+  path.lineTo(collarRadius * 0.72, y + 0.07);
+  path.lineTo(collarRadius * 0.82, y + 0.085);
+  path.lineTo(collarRadius * 0.8, y + 0.1);
+  path.lineTo(neckRadius, y + 0.11);
+}
+
+function latheMesh(path, material, segments = 48) {
+  const geometry = new THREE.LatheGeometry(path.getPoints(10), segments);
+  return new THREE.Mesh(geometry, material);
+}
+
+// Bishop mitre: an egg-shaped cap with the traditional slit cut into one side.
+function createMitre(material, baseY, height) {
+  const mitreRadius = (t) => 0.175 * Math.sin(Math.PI * t ** 0.75) ** 0.8;
+  const sample = (from, to, steps) => {
+    const points = [];
+    for (let i = 0; i <= steps; i += 1) {
+      const t = from + ((to - from) * i) / steps;
+      points.push(new THREE.Vector2(mitreRadius(t), baseY + t * height));
+    }
+    return points;
+  };
+  const slitFrom = 0.42;
+  const slitTo = 0.7;
+  const slitWidth = 0.34;
+  const slitCenter = Math.PI / 4;
+
+  const lower = sample(0, slitFrom, 16);
+  // The short inset step keeps the flat caps from softening the shading of the rim.
+  lower.push(new THREE.Vector2(lower[lower.length - 1].x - 0.002, lower[lower.length - 1].y));
+  lower.push(new THREE.Vector2(0, baseY + slitFrom * height));
+  const upper = sample(slitTo, 1, 14);
+  upper.unshift(new THREE.Vector2(upper[0].x - 0.002, upper[0].y));
+  upper.unshift(new THREE.Vector2(0, baseY + slitTo * height));
+  const middle = sample(slitFrom, slitTo, 12);
+
+  const meshes = [
+    new THREE.Mesh(new THREE.LatheGeometry(lower, 48), material),
+    new THREE.Mesh(new THREE.LatheGeometry(upper, 48), material),
+    new THREE.Mesh(
+      new THREE.LatheGeometry(middle, 44, slitCenter + slitWidth / 2, Math.PI * 2 - slitWidth),
+      material,
+    ),
+  ];
+  const wall = new THREE.Shape([
+    new THREE.Vector2(0, middle[0].y),
+    ...middle,
+    new THREE.Vector2(0, middle[middle.length - 1].y),
+  ]);
+  for (const phi of [slitCenter - slitWidth / 2, slitCenter + slitWidth / 2]) {
+    const geometry = new THREE.ShapeGeometry(wall);
+    geometry.rotateY(phi - Math.PI / 2);
+    meshes.push(new THREE.Mesh(geometry, material));
   }
-  return crown;
+  return meshes;
+}
+
+// Knight: a carved horse-head silhouette, extruded and then sculpted so the
+// neck is broad at the base and the muzzle narrows toward the nose.
+function createKnightHead(material) {
+  const shape = new THREE.Shape();
+  shape.moveTo(-0.2, -0.02);
+  shape.lineTo(0.16, -0.02);
+  shape.quadraticCurveTo(0.25, -0.02, 0.26, 0.08);
+  shape.quadraticCurveTo(0.27, 0.2, 0.23, 0.3);
+  shape.quadraticCurveTo(0.2, 0.43, 0.32, 0.45);
+  shape.lineTo(0.43, 0.46);
+  shape.quadraticCurveTo(0.475, 0.47, 0.475, 0.52);
+  shape.quadraticCurveTo(0.49, 0.6, 0.45, 0.63);
+  shape.quadraticCurveTo(0.32, 0.7, 0.2, 0.82);
+  shape.lineTo(0.14, 0.94);
+  shape.quadraticCurveTo(0.11, 0.99, 0.09, 0.94);
+  shape.lineTo(0.04, 0.84);
+  shape.quadraticCurveTo(-0.2, 0.74, -0.28, 0.46);
+  shape.quadraticCurveTo(-0.32, 0.2, -0.28, 0.08);
+  shape.quadraticCurveTo(-0.26, -0.02, -0.2, -0.02);
+
+  const head = new THREE.Group();
+  head.add(new THREE.Mesh(sculptKnightGeometry(shape, 0.2, 0.07, 0.05), material));
+
+  const mane = new THREE.Shape();
+  mane.moveTo(0.03, 0.87);
+  mane.quadraticCurveTo(-0.22, 0.78, -0.305, 0.47);
+  mane.quadraticCurveTo(-0.335, 0.28, -0.27, 0.1);
+  mane.quadraticCurveTo(-0.25, 0.3, -0.2, 0.46);
+  mane.quadraticCurveTo(-0.1, 0.68, 0.03, 0.87);
+  head.add(new THREE.Mesh(sculptKnightGeometry(mane, 0.1, 0.03, 0.022), material));
+
+  for (const side of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.03, 14, 10), material);
+    eye.scale.set(1.35, 0.8, 0.6);
+    eye.position.set(0.2, 0.72, side * 0.148);
+    head.add(eye);
+  }
+  return head;
+}
+
+// Extrudes a knight outline and tapers it: broad neck at the base, slimmer muzzle.
+function sculptKnightGeometry(shape, depth, bevelThickness, bevelSize) {
+  let geometry = new THREE.ExtrudeGeometry(shape, {
+    depth,
+    bevelEnabled: true,
+    bevelThickness,
+    bevelSize,
+    bevelSegments: 6,
+    curveSegments: 20,
+  });
+  geometry.translate(0, 0, -depth / 2);
+  geometry.deleteAttribute('normal');
+  geometry.deleteAttribute('uv');
+  geometry = mergeVertices(geometry, 1e-4);
+  const position = geometry.attributes.position;
+  for (let i = 0; i < position.count; i += 1) {
+    const x = position.getX(i);
+    const y = position.getY(i);
+    const neck = THREE.MathUtils.clamp(1.3 - y * 0.55, 0.78, 1.3);
+    const muzzle = 1 - 0.32 * THREE.MathUtils.smoothstep(x, 0.12, 0.46);
+    position.setZ(i, position.getZ(i) * neck * muzzle);
+  }
+  geometry.computeVertexNormals();
+  return geometry;
 }
 
 function onPointerDown(event) {
