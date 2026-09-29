@@ -6,7 +6,13 @@ The game is built with Three.js, `chess.js`, Stockfish, Vite, and Tauri v2. It s
 
 The Android package id and iOS bundle id are `com.quantumbilling.quantumchess`.
 
-![Quantum Chess gameplay screenshot](docs/screen.png)
+## Play Online
+
+**[▶ Play Quantum Chess in your browser](https://codejq.github.io/quantum-chess-game/game/)**. There's nothing to install: pick a white piece, choose a highlighted square, and play against Stockfish.
+
+The project website is at [codejq.github.io/quantum-chess-game](https://codejq.github.io/quantum-chess-game/), with downloads for desktop and Android.
+
+[![Quantum Chess gameplay screenshot](docs/screen.png)](https://codejq.github.io/quantum-chess-game/game/)
 
 ## Chess Pieces
 
