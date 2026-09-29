@@ -15,7 +15,7 @@ Build a polished 3D chess experience that runs in the browser and feels like a c
 The first version should include:
 
 - A full 8x8 chessboard rendered in Three.js.
-- Distinct 3D chess pieces for both sides.
+- Distinct 3D chess pieces for both sides, using a sculpted Staunton set ([Chess Set](https://polyhaven.com/a/chess_set) by Riley Queen, Poly Haven, CC0).
 - Mouse or touch interaction for selecting and moving pieces.
 - Legal move validation using a reliable chess rules engine.
 - LLM play support through a browser agent API.

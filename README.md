@@ -8,6 +8,12 @@ The Android package id and iOS bundle id are `com.quantumbilling.quantumchess`.
 
 ![Quantum Chess gameplay screenshot](docs/screen.png)
 
+## Chess Pieces
+
+The board uses a professionally sculpted Staunton set: a carved horse-head knight with mane and eyes, a slit bishop mitre, a crenellated rook, a pearl-crowned queen, and a cross-topped king. The pieces keep the game's clean white and black finish, with a normal map for the carved detail. Knights face the opponent, turned slightly so their profile shows from the table view.
+
+The model loads from `web/public/models/staunton-pieces.glb` (about 0.9 MB) and ships with every build, so the game stays fully offline. If the model cannot load, the game falls back to built-in Staunton-style pieces drawn in code.
+
 ## Development
 
 ```powershell
