@@ -37,8 +37,8 @@ const PIECE_STYLE_STORAGE_KEY = 'quantum-chess-piece-style';
 const PIECE_MODEL_URL = './models/staunton-pieces.glb';
 const PIECE_MODEL_SQUARE_SIZE = 0.0578881;
 const PIECE_TEXTURE_DIR = './models/marble/';
-const PIECE_STYLES = ['wood', 'marble', 'classic'];
-const PIECE_STYLE_LABELS = { wood: 'Wood', marble: 'Marble', classic: 'Classic' };
+const PIECE_STYLES = ['wood', 'ebony', 'marble', 'classic'];
+const PIECE_STYLE_LABELS = { wood: 'Wood', ebony: 'Ebony', marble: 'Marble', classic: 'Classic' };
 const PIECE_VALUES = {
   p: 100,
   n: 320,
@@ -126,12 +126,44 @@ const pieceMaterials = {
     w: createWoodMaterial({ light: 0xefd2a0, dark: 0xd2a56b, roughness: 0.36 }),
     b: createWoodMaterial({ light: 0x2c1d15, dark: 0x0f0906, roughness: 0.28 }),
   },
+  // Tournament set: pale, fine-grained boxwood and glossy ebony, played on a maple and mahogany board.
+  ebony: {
+    w: createWoodMaterial({
+      light: 0xedd3a0,
+      dark: 0xd8b67e,
+      roughness: 0.42,
+      grain: { ring: 0.12, fibre: 0.22, tone: 0.3, ringScale: 40 },
+    }),
+    b: createWoodMaterial({
+      light: 0x13100e,
+      dark: 0x050404,
+      roughness: 0.22,
+      grain: { ring: 0.1, fibre: 0.2, tone: 0.3, ringScale: 40 },
+      clearcoat: true,
+    }),
+  },
   classic: {
     w: new THREE.MeshStandardMaterial({ color: 0xf6eee0, metalness: 0.08, roughness: 0.42, side: THREE.DoubleSide }),
     b: new THREE.MeshStandardMaterial({ color: 0x202321, metalness: 0.16, roughness: 0.35, side: THREE.DoubleSide }),
   },
   // The model's own marble-like finish; its textures load the first time this style is picked.
   marble: null,
+};
+const boardWoodMaterials = {
+  light: createWoodMaterial({
+    light: 0xefdcb6,
+    dark: 0xdcc296,
+    roughness: 0.5,
+    grain: { ring: 0.35, fibre: 0.3, tone: 0.3, ringScale: 9 },
+    board: true,
+  }),
+  dark: createWoodMaterial({
+    light: 0x8f5433,
+    dark: 0x5e321c,
+    roughness: 0.45,
+    grain: { ring: 0.45, fibre: 0.3, tone: 0.3, ringScale: 9 },
+    board: true,
+  }),
 };
 let pieceDetailMaterial = null;
 let pieceStyle = loadPieceStyle();
@@ -253,7 +285,7 @@ function createBoard() {
       const square = `${String.fromCharCode(97 + fileIndex)}${rank}`;
       const mesh = new THREE.Mesh(
         tileGeometry,
-        (rank + fileIndex) % 2 === 0 ? tileMaterialDark : tileMaterialLight,
+        baseTileMaterial(rank, fileIndex),
       );
       mesh.position.copy(squareToPosition(square));
       mesh.receiveShadow = true;
@@ -330,6 +362,7 @@ function setPieceStyle(style) {
     // Storage can be unavailable (private mode); the choice then lasts for this visit.
   }
   syncPieces();
+  applyBoardHighlights();
 }
 
 function loadPieceStyle() {
@@ -342,30 +375,46 @@ function loadPieceStyle() {
   return 'wood';
 }
 
-// Procedural wood: growth rings around a vertical log axis set beside the piece,
-// so the grain runs up the piece the way it does on a turned wooden set.
-function createWoodMaterial({ light, dark, roughness }) {
-  const material = new THREE.MeshStandardMaterial({
-    roughness,
-    metalness: 0,
-    side: THREE.DoubleSide,
-  });
-  const woodLight = new THREE.Color(light);
-  const woodDark = new THREE.Color(dark);
+// Procedural wood: growth rings around a log axis set beside the surface. On pieces the
+// axis is vertical, so the grain runs up the piece like a turned set; on board squares it
+// runs across the square like a plank, with each square cut from a different spot.
+function createWoodMaterial({
+  light,
+  dark,
+  roughness,
+  grain = { ring: 0.32, fibre: 0.28, tone: 0.3, ringScale: 34 },
+  clearcoat = false,
+  board = false,
+}) {
+  const options = { roughness, metalness: 0, side: THREE.DoubleSide };
+  const material = clearcoat
+    ? new THREE.MeshPhysicalMaterial({ ...options, clearcoat: 1, clearcoatRoughness: 0.08 })
+    : new THREE.MeshStandardMaterial(options);
+  const uniforms = {
+    woodLight: { value: new THREE.Color(light) },
+    woodDark: { value: new THREE.Color(dark) },
+    woodGrain: { value: new THREE.Vector4(grain.ring, grain.fibre, grain.tone, grain.ringScale) },
+  };
+  const woodPosition = board
+    ? 'vWoodPos = (modelMatrix * vec4(position, 1.0)).xyz;'
+    : 'vWoodPos = (modelMatrix * vec4(position, 1.0)).xyz - modelMatrix[3].xyz;';
+  // Board squares: turn the log axis to run along x and shift the cut per square.
+  const woodFrame = board
+    ? `vec2 cell = floor((p.xz + ${(BOARD_OFFSET + TILE_SIZE / 2).toFixed(4)}) / ${TILE_SIZE.toFixed(4)});
+  vec3 q = vec3(p.y, p.x, p.z) + vec3(woodHash(vec3(cell, 1.0)) * 3.0, 0.0, woodHash(vec3(cell, 7.0)) * 3.0);`
+    : 'vec3 q = p;';
+  material.customProgramCacheKey = () => `wood-${board ? 'board' : 'piece'}`;
   material.onBeforeCompile = (shader) => {
-    shader.uniforms.woodLight = { value: woodLight };
-    shader.uniforms.woodDark = { value: woodDark };
+    Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vWoodPos;')
-      .replace(
-        '#include <begin_vertex>',
-        '#include <begin_vertex>\nvWoodPos = (modelMatrix * vec4(position, 1.0)).xyz - modelMatrix[3].xyz;',
-      );
+      .replace('#include <begin_vertex>', `#include <begin_vertex>\n${woodPosition}`);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
 varying vec3 vWoodPos;
 uniform vec3 woodLight;
 uniform vec3 woodDark;
+uniform vec4 woodGrain;
 float woodHash(vec3 p) {
   p = fract(p * 0.3183099 + 0.1);
   p *= 17.0;
@@ -383,12 +432,13 @@ float woodNoise(vec3 x) {
     f.z);
 }
 vec3 woodColor(vec3 p) {
-  float warp = woodNoise(p * vec3(2.6, 0.5, 2.6));
-  float rings = length(p.xz + vec2(1.9, 1.1)) * 34.0 + warp * 3.0;
+  ${woodFrame}
+  float warp = woodNoise(q * vec3(2.6, 0.5, 2.6));
+  float rings = length(q.xz + vec2(1.9, 1.1)) * woodGrain.w + warp * 3.0;
   float ring = pow(0.5 + 0.5 * sin(rings * 6.2831853), 6.0);
-  float fibre = woodNoise(p * vec3(110.0, 2.0, 110.0));
-  float tone = woodNoise(p * 2.4);
-  return mix(woodLight, woodDark, clamp(ring * 0.32 + fibre * 0.28 + tone * 0.3, 0.0, 1.0));
+  float fibre = woodNoise(q * vec3(110.0, 2.0, 110.0));
+  float tone = woodNoise(q * 2.4);
+  return mix(woodLight, woodDark, clamp(ring * woodGrain.x + fibre * woodGrain.y + tone * woodGrain.z, 0.0, 1.0));
 }`)
       .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= woodColor(vWoodPos);');
   };
@@ -411,6 +461,7 @@ function loadPieceModels() {
         pieceDetailMaterial = detailMaterial;
         const sharedNormalMaterials = [
           ...Object.values(pieceMaterials.wood),
+          ...Object.values(pieceMaterials.ebony),
           ...Object.values(pieceMaterials.classic),
           ...(pieceMaterials.marble ? [pieceMaterials.marble.w] : []),
         ];
@@ -836,8 +887,9 @@ function applyBoardHighlights() {
   for (const [square, mesh] of tileMeshes) {
     const fileIndex = square.charCodeAt(0) - 97;
     const rank = Number(square[1]);
-    mesh.material = (rank + fileIndex) % 2 === 0 ? tileMaterialDark : tileMaterialLight;
+    mesh.material = baseTileMaterial(rank, fileIndex);
   }
+  if (selectedSquare) tileMeshes.get(selectedSquare).material = tileMaterialSelected;
 
   for (const square of lastMoveSquares) {
     tileMeshes.get(square).material = tileMaterialLastMove;
@@ -849,6 +901,12 @@ function applyBoardHighlights() {
       ? tileMaterialCheckmate
       : tileMaterialCheck;
   }
+}
+
+function baseTileMaterial(rank, fileIndex) {
+  const dark = (rank + fileIndex) % 2 === 0;
+  if (pieceStyle === 'ebony') return dark ? boardWoodMaterials.dark : boardWoodMaterials.light;
+  return dark ? tileMaterialDark : tileMaterialLight;
 }
 
 function markLastMove(from, to) {

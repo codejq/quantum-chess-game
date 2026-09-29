@@ -18,9 +18,10 @@ The project website is at [codejq.github.io/quantum-chess-game](https://codejq.g
 
 The board uses a professionally sculpted Staunton set: a carved horse-head knight with mane and eyes, a slit bishop mitre, a crenellated rook, a pearl-crowned queen, and a cross-topped king. Knights face the opponent, turned slightly so their profile shows from the table view.
 
-The **Pieces** button in the controls panel switches between three finishes, and the game remembers your choice:
+The **Pieces** button in the controls panel switches between four finishes, and the game remembers your choice:
 
 - **Wood** (default): polished boxwood for White and ebony for Black. The grain is drawn by a shader, so it adds no download.
+- **Ebony**: a tournament set of glossy ebony and pale boxwood, played on a maple and mahogany wooden board. This is the only look that also changes the board.
 - **Marble**: the 3D model's own textures, a veined white and dark stone finish. These textures (about 3 MB) load only when you pick this look.
 - **Classic**: plain white and black.
 
