@@ -16,9 +16,15 @@ The project website is at [codejq.github.io/quantum-chess-game](https://codejq.g
 
 ## Chess Pieces
 
-The board uses a professionally sculpted Staunton set: a carved horse-head knight with mane and eyes, a slit bishop mitre, a crenellated rook, a pearl-crowned queen, and a cross-topped king. The pieces keep the game's clean white and black finish, with a normal map for the carved detail. Knights face the opponent, turned slightly so their profile shows from the table view.
+The board uses a professionally sculpted Staunton set: a carved horse-head knight with mane and eyes, a slit bishop mitre, a crenellated rook, a pearl-crowned queen, and a cross-topped king. Knights face the opponent, turned slightly so their profile shows from the table view.
 
-The model loads from `web/public/models/staunton-pieces.glb` (about 0.9 MB) and ships with every build, so the game stays fully offline. If the model cannot load, the game falls back to built-in Staunton-style pieces drawn in code.
+The **Pieces** button in the controls panel switches between three finishes, and the game remembers your choice:
+
+- **Wood** (default): polished boxwood for White and ebony for Black. The grain is drawn by a shader, so it adds no download.
+- **Marble**: the 3D model's own textures, a veined white and dark stone finish. These textures (about 3 MB) load only when you pick this look.
+- **Classic**: plain white and black.
+
+The model loads from `web/public/models/staunton-pieces.glb` (about 0.9 MB), and the Marble textures from `web/public/models/marble/`. Both ship with every build, so the game stays fully offline. If the model cannot load, the game falls back to built-in Staunton-style pieces drawn in code.
 
 ## Development
 
@@ -40,7 +46,7 @@ npm run tauri:build
 
 Quantum Chess Game is credited to [Quantum Billing LLC](https://qb-solutions.us/).
 
-The 3D chess pieces are from [Chess Set](https://polyhaven.com/a/chess_set) by Riley Queen on Poly Haven, released under CC0. `web/public/models/staunton-pieces.glb` keeps only one mesh per piece type and the normal map.
+The 3D chess pieces are from [Chess Set](https://polyhaven.com/a/chess_set) by Riley Queen on Poly Haven, released under CC0. `web/public/models/staunton-pieces.glb` keeps only one mesh per piece type and the normal map; `web/public/models/marble/` holds the set's piece textures.
 
 ## LLM Play
 

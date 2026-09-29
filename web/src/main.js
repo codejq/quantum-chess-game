@@ -15,6 +15,7 @@ const resetBtn = document.querySelector('#reset-btn');
 const undoBtn = document.querySelector('#undo-btn');
 const cameraBtn = document.querySelector('#camera-btn');
 const soundBtn = document.querySelector('#sound-btn');
+const piecesBtn = document.querySelector('#pieces-btn');
 const modeBtn = document.querySelector('#mode-btn');
 const zoomInBtn = document.querySelector('#zoom-in-btn');
 const zoomOutBtn = document.querySelector('#zoom-out-btn');
@@ -31,9 +32,13 @@ const ENGINE_START_DELAY = 160;
 const COMPUTER_ANIMATION_MS = 620;
 const STOCKFISH_WORKER_URL = './stockfish/stockfish-18-lite-single.js';
 const ZOOM_STORAGE_KEY = 'quantum-chess-zoom-distance';
+const PIECE_STYLE_STORAGE_KEY = 'quantum-chess-piece-style';
 // Sculpted Staunton set: "Chess Set" by Riley Queen, Poly Haven (CC0).
 const PIECE_MODEL_URL = './models/staunton-pieces.glb';
 const PIECE_MODEL_SQUARE_SIZE = 0.0578881;
+const PIECE_TEXTURE_DIR = './models/marble/';
+const PIECE_STYLES = ['wood', 'marble', 'classic'];
+const PIECE_STYLE_LABELS = { wood: 'Wood', marble: 'Marble', classic: 'Classic' };
 const PIECE_VALUES = {
   p: 100,
   n: 320,
@@ -115,18 +120,21 @@ const tileMaterialCheckmate = new THREE.MeshStandardMaterial({
   emissive: 0x7a060b,
   roughness: 0.45,
 });
-const whitePieceMaterial = new THREE.MeshStandardMaterial({
-  color: 0xf6eee0,
-  metalness: 0.08,
-  roughness: 0.42,
-  side: THREE.DoubleSide,
-});
-const blackPieceMaterial = new THREE.MeshStandardMaterial({
-  color: 0x202321,
-  metalness: 0.16,
-  roughness: 0.35,
-  side: THREE.DoubleSide,
-});
+const pieceMaterials = {
+  // Polished boxwood for White and ebony for Black, like a turned tournament set.
+  wood: {
+    w: createWoodMaterial({ light: 0xefd2a0, dark: 0xd2a56b, roughness: 0.36 }),
+    b: createWoodMaterial({ light: 0x2c1d15, dark: 0x0f0906, roughness: 0.28 }),
+  },
+  classic: {
+    w: new THREE.MeshStandardMaterial({ color: 0xf6eee0, metalness: 0.08, roughness: 0.42, side: THREE.DoubleSide }),
+    b: new THREE.MeshStandardMaterial({ color: 0x202321, metalness: 0.16, roughness: 0.35, side: THREE.DoubleSide }),
+  },
+  // The model's own marble-like finish; its textures load the first time this style is picked.
+  marble: null,
+};
+let pieceDetailMaterial = null;
+let pieceStyle = loadPieceStyle();
 const markerMaterial = new THREE.MeshBasicMaterial({
   color: 0xe8bf67,
   transparent: true,
@@ -202,6 +210,12 @@ soundBtn.addEventListener('click', () => {
   }
 });
 
+piecesBtn.addEventListener('click', () => {
+  const next = PIECE_STYLES[(PIECE_STYLES.indexOf(pieceStyle) + 1) % PIECE_STYLES.length];
+  setPieceStyle(next);
+});
+piecesBtn.textContent = `Pieces: ${PIECE_STYLE_LABELS[pieceStyle]}`;
+
 window.addEventListener('resize', resize);
 window.addEventListener('pointerdown', unlockAudio, { once: true });
 window.addEventListener('keydown', unlockAudio, { once: true });
@@ -271,6 +285,116 @@ function syncPieces() {
   }
 }
 
+function getPieceMaterials() {
+  if (pieceStyle === 'marble' && !pieceMaterials.marble) {
+    pieceMaterials.marble = {
+      w: createModelTextureMaterial('white', pieceDetailMaterial),
+      b: createModelTextureMaterial('black'),
+    };
+  }
+  return pieceMaterials[pieceStyle];
+}
+
+function createModelTextureMaterial(color, sharedNormals = null) {
+  const loader = new THREE.TextureLoader();
+  const load = (name, srgb) => {
+    const texture = loader.load(`${PIECE_TEXTURE_DIR}${color}_${name}.jpg`);
+    // glTF UVs expect textures that are not flipped vertically.
+    texture.flipY = false;
+    if (srgb) texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  };
+  const material = new THREE.MeshStandardMaterial({
+    map: load('diff', true),
+    roughnessMap: load('arm', false),
+    roughness: 1,
+    metalness: 0,
+    side: THREE.DoubleSide,
+  });
+  if (color === 'black') {
+    material.normalMap = load('nor_gl', false);
+  } else if (sharedNormals) {
+    // White's normal map is the one packed into the piece model.
+    material.normalMap = sharedNormals.normalMap;
+    material.normalScale.copy(sharedNormals.normalScale);
+  }
+  return material;
+}
+
+function setPieceStyle(style) {
+  pieceStyle = style;
+  piecesBtn.textContent = `Pieces: ${PIECE_STYLE_LABELS[style]}`;
+  try {
+    localStorage.setItem(PIECE_STYLE_STORAGE_KEY, style);
+  } catch {
+    // Storage can be unavailable (private mode); the choice then lasts for this visit.
+  }
+  syncPieces();
+}
+
+function loadPieceStyle() {
+  try {
+    const stored = localStorage.getItem(PIECE_STYLE_STORAGE_KEY);
+    if (PIECE_STYLES.includes(stored)) return stored;
+  } catch {
+    // Fall back to the default style.
+  }
+  return 'wood';
+}
+
+// Procedural wood: growth rings around a vertical log axis set beside the piece,
+// so the grain runs up the piece the way it does on a turned wooden set.
+function createWoodMaterial({ light, dark, roughness }) {
+  const material = new THREE.MeshStandardMaterial({
+    roughness,
+    metalness: 0,
+    side: THREE.DoubleSide,
+  });
+  const woodLight = new THREE.Color(light);
+  const woodDark = new THREE.Color(dark);
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.woodLight = { value: woodLight };
+    shader.uniforms.woodDark = { value: woodDark };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vWoodPos;')
+      .replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\nvWoodPos = (modelMatrix * vec4(position, 1.0)).xyz - modelMatrix[3].xyz;',
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+varying vec3 vWoodPos;
+uniform vec3 woodLight;
+uniform vec3 woodDark;
+float woodHash(vec3 p) {
+  p = fract(p * 0.3183099 + 0.1);
+  p *= 17.0;
+  return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+float woodNoise(vec3 x) {
+  vec3 i = floor(x);
+  vec3 f = fract(x);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(mix(woodHash(i), woodHash(i + vec3(1.0, 0.0, 0.0)), f.x),
+        mix(woodHash(i + vec3(0.0, 1.0, 0.0)), woodHash(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
+    mix(mix(woodHash(i + vec3(0.0, 0.0, 1.0)), woodHash(i + vec3(1.0, 0.0, 1.0)), f.x),
+        mix(woodHash(i + vec3(0.0, 1.0, 1.0)), woodHash(i + vec3(1.0, 1.0, 1.0)), f.x), f.y),
+    f.z);
+}
+vec3 woodColor(vec3 p) {
+  float warp = woodNoise(p * vec3(2.6, 0.5, 2.6));
+  float rings = length(p.xz + vec2(1.9, 1.1)) * 34.0 + warp * 3.0;
+  float ring = pow(0.5 + 0.5 * sin(rings * 6.2831853), 6.0);
+  float fibre = woodNoise(p * vec3(110.0, 2.0, 110.0));
+  float tone = woodNoise(p * 2.4);
+  return mix(woodLight, woodDark, clamp(ring * 0.32 + fibre * 0.28 + tone * 0.3, 0.0, 1.0));
+}`)
+      .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= woodColor(vWoodPos);');
+  };
+  return material;
+}
+
 function loadPieceModels() {
   new GLTFLoader()
     .loadAsync(PIECE_MODEL_URL)
@@ -284,7 +408,13 @@ function loadPieceModels() {
         pieceModels.set(node.name, node);
       }
       if (detailMaterial?.normalMap) {
-        for (const material of [whitePieceMaterial, blackPieceMaterial]) {
+        pieceDetailMaterial = detailMaterial;
+        const sharedNormalMaterials = [
+          ...Object.values(pieceMaterials.wood),
+          ...Object.values(pieceMaterials.classic),
+          ...(pieceMaterials.marble ? [pieceMaterials.marble.w] : []),
+        ];
+        for (const material of sharedNormalMaterials) {
           material.normalMap = detailMaterial.normalMap;
           material.normalScale.copy(detailMaterial.normalScale);
           material.needsUpdate = true;
@@ -300,9 +430,9 @@ function loadPieceModels() {
 }
 
 function createPiece(piece) {
-  const key = `${piece.color}${piece.type}`;
+  const key = `${pieceStyle}${piece.color}${piece.type}`;
   if (!pieceTemplates.has(key)) {
-    const material = piece.color === 'w' ? whitePieceMaterial : blackPieceMaterial;
+    const material = getPieceMaterials()[piece.color];
     const model = pieceModels.get(piece.type);
     let template;
     if (model) {
